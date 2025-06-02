@@ -145,6 +145,9 @@ void loop() {
     Serial.print("Nivel agua: "); Serial.println(nivelAgua.leerNivel());
     Serial.print("Estado flotador: "); 
     Serial.println(nivelAgua.estadoActual() ? "ALTO (suficiente)" : "BAJO (necesita recarga)");
+    Serial.print("Voltaje aproximado: ");
+    Serial.print((float)analogRead(PIN_SENSOR_NIVEL) * 3.3 / 4095);
+    Serial.println("V");
     Serial.println("============================");
   }
 }

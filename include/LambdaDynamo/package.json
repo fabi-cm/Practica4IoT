@@ -1,0 +1,20 @@
+{
+    "name": "lambda-dynamo-iot",
+    "version": "1.0.0",
+    "description": "",
+    "license": "ISC",
+    "author": "Jhulians Garcia Hinojosa - Fabio Copa Mejía",
+    "type": "commonjs",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "aws-sdk": "^2.1692.0",
+        "lambda-dynamo-iot": "file:",
+        "luxon": "^3.6.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.15.21"
+    }
+}
