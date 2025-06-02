@@ -16,17 +16,6 @@
           "samples": []
         },
         {
-          "name": "HelloWorldIntent",
-          "slots": [],
-          "samples": [
-            "hola",
-            "como estás",
-            "di hola mundo",
-            "di hola",
-            "hola mundo"
-          ]
-        },
-        {
           "name": "AMAZON.NavigateHomeIntent",
           "samples": []
         },
@@ -52,6 +41,17 @@
             "configura el modo manual"
           ]
         },
+        {
+          "name": "EnviarCorreoEstadoIntent",
+          "slots": [],
+          "samples": [
+            "envíame el estado por correo",
+            "manda el estado por email",
+            "mándame el estado",
+            "envía el estado actual"
+          ]
+        },
+
         {
           "name": "ModoActualIntent",
           "slots": [],

@@ -7,8 +7,23 @@ const IotData = new AWS.IotData({
         connectTimeout: 2000
     }
 });
+const sns = new AWS.SNS();
 
-// Configuración de parámetros para AWS IoT
+async function enviarEstadoPorCorreo(mensaje) {
+    const params = {
+        Subject: 'Estado de tu maceta inteligente',
+        Message: mensaje,
+        TopicArn: 'arn:aws:sns:us-east-2:077076922622:alertasMacetaSmart'
+    };
+
+    try {
+        await sns.publish(params).promise();
+        console.log("Correo enviado con éxito.");
+    } catch (error) {
+        console.error("Error enviando el correo:", error);
+    }
+}
+
 const TurnOffParams = {
     thingName: 'prueba1',
     payload: JSON.stringify({
@@ -35,23 +50,28 @@ const ShadowParams = {
     thingName: 'prueba1',
 };
 
-// Función mejorada para obtener el shadow con manejo de errores
 function getShadowPromise(params) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            reject('Timeout al obtener shadow');
-        }, 3000);
+            reject(new Error('Timeout al obtener shadow'));
+        }, 5000); // Aumenta el timeout a 5 segundos
 
         IotData.getThingShadow(params, (err, data) => {
             clearTimeout(timer);
             if (err) {
-                console.error("Error detallado:", JSON.stringify(err, null, 2));
-                reject(`Error al obtener shadow: ${err.code}`);
+                console.error("Error detallado:", {
+                    code: err.code,
+                    message: err.message,
+                    stack: err.stack
+                });
+                reject(new Error(`Error al obtener shadow: ${err.code}`));
             } else {
                 try {
-                    resolve(JSON.parse(data.payload));
+                    const parsed = JSON.parse(data.payload);
+                    console.log("Shadow obtenido:", JSON.stringify(parsed, null, 2));
+                    resolve(parsed);
                 } catch (parseErr) {
-                    reject(`Error parseando shadow: ${parseErr.message}`);
+                    reject(new Error(`Error parseando shadow: ${parseErr.message}`));
                 }
             }
         });
@@ -155,41 +175,49 @@ const StateIntentHandler = {
         }
     }
 };
-
 const BombStateIntentHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'BombStateIntent';
     },
     async handle(handlerInput) {
-        try {
-            console.log("Consultando estado de la bomba...");
-            const shadow = await getShadowPromise(ShadowParams);
-            
-            if (!shadow || !shadow.state || !shadow.state.reported) {
-                throw new Error('No se pudieron obtener los datos del dispositivo');
-            }
-            
-            const bombaState = shadow.state.reported.bomba || "desconocido";
-            const estado = bombaState === "ON" ? 'encendida' : 'apagada';
-            
-            console.log(`Estado de la bomba: ${estado}`);
-            
-            return handlerInput.responseBuilder
-                .speak(`La bomba de agua está ${estado}`)
-                .withSimpleCard('Estado de la Bomba', `La bomba está ${estado}`)
-                .withShouldEndSession(false)
-                .reprompt('¿Necesitas otra información?')
-                .getResponse();
-                
-        } catch (err) {
-            console.error("Error en BombStateIntent:", err);
-            return handlerInput.responseBuilder
-                .speak('No pude verificar el estado de la bomba. Por favor, inténtalo más tarde.')
-                .withShouldEndSession(false)
-                .getResponse();
+    try {
+        console.log("Iniciando consulta de estado de bomba...");
+        const shadow = await getShadowPromise(ShadowParams);
+        console.log("Shadow recibido:", JSON.stringify(shadow, null, 2));
+        
+        if (!shadow || !shadow.state) {
+            console.error("Shadow incompleto - falta state");
+            throw new Error('No se pudieron obtener los datos del dispositivo');
         }
+        
+        if (!shadow.state.reported) {
+            console.error("Shadow incompleto - falta reported");
+            throw new Error('El dispositivo no ha reportado su estado');
+        }
+        
+        const bombaState = shadow.state.reported.bomba;
+        if (bombaState === undefined) {
+            console.error("Estado de bomba no definido en shadow");
+            throw new Error('Estado de bomba no disponible');
+        }
+        
+        const estado = bombaState === "ON" ? 'encendida' : 'apagada';
+        console.log(`Estado final de bomba: ${estado}`);
+        
+        return handlerInput.responseBuilder
+            .speak(`La bomba de agua está ${estado}`)
+            .getResponse();
+    } catch (err) {
+        console.error("Error completo en BombStateIntent:", {
+            message: err.message,
+            stack: err.stack
+        });
+        return handlerInput.responseBuilder
+            .speak('No pude verificar el estado de la bomba. Por favor, inténtalo más tarde.')
+            .getResponse();
     }
+}
 };
 
 // Handlers estándar de Alexa
@@ -305,6 +333,60 @@ const SetModoManualIntentHandler = {
     }
 };
 
+const EnviarCorreoEstadoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'EnviarCorreoEstadoIntent';
+    },
+    async handle(handlerInput) {
+        try {
+            console.log("Consultando estado del dispositivo...");
+            const shadow = await getShadowPromise(ShadowParams);
+            
+            if (!shadow || !shadow.state || !shadow.state.reported) {
+                throw new Error('Datos del dispositivo incompletos');
+            }
+            
+            const reported = shadow.state.reported;
+            const bombaState = reported.bomba || "desconocido";
+            const humedad = reported.humedad !== undefined ? reported.humedad : "indeterminada";
+            const nivelAgua = reported.nivel_agua !== undefined ? reported.nivel_agua : "indeterminado";
+            const necesitaRecarga = reported.necesita_recarga || false;
+            
+            // Mensaje mejorado con alerta de agua
+            let mensaje = `Estado de la maceta inteligente:\n
+- Bomba: ${bombaState}\n
+- Humedad: ${humedad}%\n
+- Nivel de agua: ${nivelAgua}%`;
+
+            if (necesitaRecarga) {
+                mensaje += "\n\n🚨 ALERTA: El tanque de agua necesita recarga urgente!";
+            } else if (nivelAgua < 30) {
+                mensaje += "\n\n⚠ Advertencia: El nivel de agua está bajo, considera recargar pronto.";
+            }
+
+            console.log(`Enviando mensaje: ${mensaje}`);
+            await enviarEstadoPorCorreo(mensaje);
+
+            // Respuesta vocal adaptada
+            let speakOutput = "He enviado el estado actual de tu maceta a tu correo.";
+            if (necesitaRecarga) {
+                speakOutput += " ¡ATENCIÓN! El tanque necesita recarga de agua urgente.";
+            }
+
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .withSimpleCard('Estado enviado por correo', mensaje)
+                .getResponse();
+        } catch (err) {
+            console.error("Error en EnviarCorreoEstadoIntent:", err);
+            return handlerInput.responseBuilder
+                .speak("No pude enviar el correo. " + (err.message || "Verifica la configuración de SNS."))
+                .getResponse();
+        }
+    }
+};
+
 const SessionEndedRequestHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'SessionEndedRequest';
@@ -319,12 +401,18 @@ const ErrorHandler = {
     canHandle() {
         return true;
     },
-    handle(handlerInput, error) {
-        console.log(`Error manejado: ${JSON.stringify(error)}`);
+    async handle(handlerInput, error) {
+        console.error(`Error completo: ${error.stack}`);
         
+        // Enviar notificación de error
+        await sns.publish({
+            TopicArn: 'arn:aws:sns:us-east-2:077076922622:alertasMacetaSmart',
+            Subject: 'ERROR en Skill de Alexa',
+            Message: `Error: ${error.message}\nStack: ${error.stack}`
+        }).promise();
+
         return handlerInput.responseBuilder
-            .speak('Disculpa, hubo un error. Por favor, inténtalo de nuevo.')
-            .reprompt('¿Puedes repetir lo que necesitas?')
+            .speak('Lo siento, hubo un problema técnico. He enviado una alerta al administrador. Por favor, inténtalo de nuevo más tarde.')
             .withShouldEndSession(false)
             .getResponse();
     }
@@ -343,7 +431,8 @@ exports.handler = Alexa.SkillBuilders.custom()
         FallbackIntentHandler,
         SetModoAutomaticoIntentHandler,
         SetModoManualIntentHandler,
-        SessionEndedRequestHandler,
+        EnviarCorreoEstadoIntentHandler,
+        SessionEndedRequestHandler
     )
     .addErrorHandlers(ErrorHandler)
     .withApiClient(new Alexa.DefaultApiClient())
