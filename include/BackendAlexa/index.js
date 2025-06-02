@@ -241,6 +241,70 @@ const FallbackIntentHandler = {
     }
 };
 
+const SetModoAutomaticoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SetModoAutomaticoIntent';
+    },
+    async handle(handlerInput) {
+        const payload = {
+            state: {
+                desired: {
+                    modo: "AUTOMATICO"
+                }
+            }
+        };
+
+        try {
+            await IotData.updateThingShadow({
+                thingName: 'prueba1',
+                payload: JSON.stringify(payload)
+            }).promise();
+
+            return handlerInput.responseBuilder
+                .speak('Modo automático activado. La maceta se encargará solita de regar.')
+                .getResponse();
+        } catch (err) {
+            console.error("Error al cambiar a modo automático:", err);
+            return handlerInput.responseBuilder
+                .speak('No se pudo cambiar a modo automático. Intenta de nuevo más tarde.')
+                .getResponse();
+        }
+    }
+};
+
+const SetModoManualIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SetModoManualIntent';
+    },
+    async handle(handlerInput) {
+        const payload = {
+            state: {
+                desired: {
+                    modo: "MANUAL"
+                }
+            }
+        };
+
+        try {
+            await IotData.updateThingShadow({
+                thingName: 'prueba1',
+                payload: JSON.stringify(payload)
+            }).promise();
+
+            return handlerInput.responseBuilder
+                .speak('Modo manual activado. Ahora tú tienes el control.')
+                .getResponse();
+        } catch (err) {
+            console.error("Error al cambiar a modo manual:", err);
+            return handlerInput.responseBuilder
+                .speak('No se pudo cambiar a modo manual. Intenta de nuevo más tarde.')
+                .getResponse();
+        }
+    }
+};
+
 const SessionEndedRequestHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'SessionEndedRequest';
@@ -277,7 +341,9 @@ exports.handler = Alexa.SkillBuilders.custom()
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
-        SessionEndedRequestHandler
+        SetModoAutomaticoIntentHandler,
+        SetModoManualIntentHandler,
+        SessionEndedRequestHandler,
     )
     .addErrorHandlers(ErrorHandler)
     .withApiClient(new Alexa.DefaultApiClient())

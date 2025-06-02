@@ -5,36 +5,11 @@
 #include "SensorHumedad.h"
 #include "ActuadorRiego.h"
 #include <SensorNivelAgua.h>
+#include "config.h"
 
 #define PIN_SENSOR 39
 #define PIN_RELE 4
 #define PIN_SENSOR_NIVEL 36
-
-const char* WIFI_SSID = "Tu_wifi";
-const char* WIFI_PASS = "Tu_contraseña_wifi";
-
-const char* MQTT_BROKER = "a2nbbw2lfrp0hi-ats.iot.us-east-2.amazonaws.com";
-const int MQTT_PORT = 8883;
-const char* CLIENT_ID = "ESP32_Planta_este_si";
-
-// Certificados (¡copia tus certificados aquí!)
-const char AWS_ROOT_CA[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
------END CERTIFICATE-----
-)EOF";
-
-const char DEVICE_CERT[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
------END CERTIFICATE-----
-)EOF";
-
-const char PRIVATE_KEY[] PROGMEM = R"EOF(
------BEGIN RSA PRIVATE KEY-----
------END RSA PRIVATE KEY-----
-)EOF";
-
-const char* SHADOW_UPDATE = "$aws/things/prueba1/shadow/update";
-const char* SHADOW_DELTA = "$aws/things/prueba1/shadow/update/delta";
 
 WiFiClientSecure wiFiClient;
 PubSubClient mqttClient(wiFiClient);
@@ -45,6 +20,7 @@ SensorNivelAgua nivelAgua(PIN_SENSOR_NIVEL, -1, 2000);
 bool alertaAguaEnviada = false;
 unsigned long ultimoAvisoAgua = 0;
 const unsigned long intervaloAvisoAgua = 3600000;
+String modo = "AUTOMATICO"; 
 
 void publishShadowState() {
   StaticJsonDocument<128> doc;
@@ -52,6 +28,7 @@ void publishShadowState() {
   doc["state"]["reported"]["bomba"] = digitalRead(PIN_RELE) ? "ON" : "OFF";
   doc["state"]["reported"]["nivel_agua"] = nivelAgua.leerNivel();
   doc["state"]["reported"]["necesita_recarga"] = nivelAgua.necesitaRecarga();
+  doc["state"]["reported"]["modo"] = modo;
 
   if(nivelAgua.necesitaRecarga() && 
      (millis() - ultimoAvisoAgua > intervaloAvisoAgua || !alertaAguaEnviada)) {
@@ -81,10 +58,18 @@ void callback(char* topic, byte* payload, unsigned int length) {
       bool estado = doc["state"]["bomba"] == "ON";
       digitalWrite(PIN_RELE, estado ? HIGH : LOW);
       Serial.println("Bomba " + String(estado ? "ENCENDIDA" : "APAGADA"));
-      publishShadowState();
     }
+
+    // Nuevo: manejar modo
+    if (doc["state"].containsKey("modo")) {
+      modo = doc["state"]["modo"].as<String>();
+      Serial.println("Modo actualizado a: " + modo);
+    }
+
+    publishShadowState();
   }
 }
+
 
 void reconnectMQTT() {
   while (!mqttClient.connected()) {
@@ -133,21 +118,37 @@ void loop() {
   if (millis() - lastUpdate > 5000) {
     lastUpdate = millis();
 
-    if(nivelAgua.necesitaRecarga() && digitalRead(PIN_RELE)) {
+    float humedad = sensor.leerHumedad();
+    bool necesitaAgua = nivelAgua.necesitaRecarga();
+    bool bombaEncendida = digitalRead(PIN_RELE);
+
+    if (modo == "AUTOMATICO") {
+      if (humedad < 30 && !necesitaAgua && !bombaEncendida) {
+        bomba.comenzarRiego();
+        Serial.println("Riego automático ACTIVADO: humedad baja.");
+      } else if ((humedad >= 40 || necesitaAgua) && bombaEncendida) {
+        bomba.detenerRiego();
+        Serial.println(necesitaAgua ? "Riego detenido: ¡sin agua!" : "Riego detenido: humedad suficiente.");
+      }
+    } else {
+      Serial.println("Modo MANUAL activo. No se realiza riego automático.");
+    }
+
+    // Protección: nunca regar si no hay agua (independiente del modo)
+    if (necesitaAgua && bombaEncendida) {
       bomba.detenerRiego();
-      Serial.println("¡Nivel de agua bajo! Riego detenido.");
+      Serial.println("¡Nivel de agua bajo! Riego detenido por seguridad.");
     }
 
     publishShadowState();
+
     Serial.println("===== Datos del Sistema =====");
-    Serial.print("Humedad: "); Serial.print(sensor.leerHumedad()); Serial.println("%");
-    Serial.print("Bomba: "); Serial.println(digitalRead(PIN_RELE) ? "ON" : "OFF");
+    Serial.print("Modo: "); Serial.println(modo);
+    Serial.print("Humedad: "); Serial.print(humedad); Serial.println("%");
+    Serial.print("Bomba: "); Serial.println(bombaEncendida ? "ON" : "OFF");
     Serial.print("Nivel agua: "); Serial.println(nivelAgua.leerNivel());
-    Serial.print("Estado flotador: "); 
-    Serial.println(nivelAgua.estadoActual() ? "ALTO (suficiente)" : "BAJO (necesita recarga)");
-    Serial.print("Voltaje aproximado: ");
-    Serial.print((float)analogRead(PIN_SENSOR_NIVEL) * 3.3 / 4095);
-    Serial.println("V");
+    Serial.print("Estado flotador: "); Serial.println(nivelAgua.estadoActual() ? "ALTO (suficiente)" : "BAJO (necesita recarga)");
+    Serial.print("Voltaje aprox: "); Serial.print((float)analogRead(PIN_SENSOR_NIVEL) * 3.3 / 4095);Serial.println("V");
     Serial.println("============================");
   }
 }

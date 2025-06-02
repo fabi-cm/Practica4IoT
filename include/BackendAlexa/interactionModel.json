@@ -1,0 +1,111 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "pot smart",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "HelloWorldIntent",
+          "slots": [],
+          "samples": [
+            "hola",
+            "como estás",
+            "di hola mundo",
+            "di hola",
+            "hola mundo"
+          ]
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "SetModoAutomaticoIntent",
+          "slots": [],
+          "samples": [
+            "activa el modo automático",
+            "pon en modo automático",
+            "quiero el modo automático",
+            "configura el modo automático",
+            "cambia a automático"
+          ]
+        },
+        {
+          "name": "SetModoManualIntent",
+          "slots": [],
+          "samples": [
+            "activa el modo manual",
+            "pon en modo manual",
+            "cambia a manual",
+            "quiero el modo manual",
+            "configura el modo manual"
+          ]
+        },
+        {
+          "name": "ModoActualIntent",
+          "slots": [],
+          "samples": [
+            "¿en qué modo está?",
+            "modo actual",
+            "¿está en modo automático o manual?",
+            "dime el modo actual",
+            "cuál es el modo actual"
+          ]
+        },
+
+        {
+          "name": "FlowerPotStateIntent",
+          "slots": [],
+          "samples": [
+            "dame la humedad",
+            "humedad del suelo",
+            "cuál es la humedad del suelo",
+            "humedad"
+          ]
+        },
+        {
+          "name": "TurnOnBombIntent",
+          "slots": [],
+          "samples": [
+            "prender bomba agua",
+            "encender bomba agua",
+            "enciende bomba agua",
+            "enciende la bomba agua",
+            "encender bomba de agua"
+          ]
+        },
+        {
+          "name": "TurnOffBombIntent",
+          "slots": [],
+          "samples": [
+            "detener bomba",
+            "apagar",
+            "apaga la bomba",
+            "apagar bomba"
+          ]
+        },
+        {
+          "name": "BombStateIntent",
+          "slots": [],
+          "samples": [
+            "estado de la bomba agua",
+            "dime si la bomba de agua está activada",
+            "estado de la bomba de agua"
+          ]
+        }
+      ],
+      "types": []
+    }
+  }
+}

@@ -12,7 +12,7 @@ FROM
     '$aws/things/+/shadow/update'
 WHERE 
     (state.reported.bomba = 'ON' OR state.reported.bomba = 'OFF')
-    AND state.reported.humedad <> NULL
+    AND state.reported.humedad IS NOT NULL
     AND (state.reported.modo = 'MANUAL' OR state.reported.modo = 'AUTOMATICO')
-    AND state.reported.nivel_agua <> NULL
-    AND state.reported.necesita_recarga <> NULL
+    AND state.reported.nivel_agua IS NOT NULL
+    AND state.reported.necesita_recarga IS NOT NULL
